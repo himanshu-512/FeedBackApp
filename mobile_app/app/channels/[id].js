@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
 import { getMessages } from "../../services/api";
-import ip from "../../services/ip";
+import {ip} from "../../services/ip";
 
 /* 🔓 PURE JS JWT DECODE (NO LIB) */
 const decodeJWT = (token) => {
@@ -111,7 +111,7 @@ export default function ChannelChat() {
   useEffect(() => {
     if (!userId || !isMember) return;
 
-    socketRef.current = io(`http://${ip}:4003`, {
+    socketRef.current = io(`http://${ip}:3000`, {
       transports: ["websocket"],
       auth: { userId },
     });

@@ -91,6 +91,7 @@ export const getChannelById = async (req, res) => {
 export const checkMember = async (req, res) => {
   try {
     const { id: channelId, userId } = req.params;
+    console.log(channelId, userId);
 
     const channel = await Channel.findById(channelId);
     if (!channel) {

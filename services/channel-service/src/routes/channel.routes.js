@@ -11,13 +11,14 @@ import {
 
 const router = express.Router();
 
-router.get('/all', listChannels);
-router.post('/createChannel', createChannel);
-router.post('/:id/join',verifyJWT, joinChannel);
-router.get('/:id',verifyJWT, getChannelById);
-router.get(
-  "/:id/is-member/:userId",
-  checkMember
-);
+router.get("/all", listChannels);
 router.get("/search", searchChannels);
+
+// 🔥 SPECIFIC ROUTES FIRST
+router.get("/:id/is-member/:userId", checkMember);
+
+router.post("/createChannel", createChannel);
+router.post("/:id/join", verifyJWT, joinChannel);
+router.get("/:id", verifyJWT, getChannelById);
+
 export default router;

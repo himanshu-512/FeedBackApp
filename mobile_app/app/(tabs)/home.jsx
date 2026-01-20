@@ -5,7 +5,7 @@ import { ChannelCard } from "../../components/channelCard";
 import { useEffect, useState } from "react";
 import { getChannels } from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ip from "../../services/ip";
+import {ip} from "../../services/ip";
 
 /* 🔓 SIMPLE JWT PAYLOAD DECODE (NO LIB) */
 const decodeJWT = (token) => {
@@ -60,7 +60,7 @@ export default function Home() {
   const joinChannel = async (channelId) => {
     console.log(channelId)
     try {
-      await fetch(`http://192.168.0.106:3000/channels/${channelId}/join`, {
+      await fetch(`http://${ip}:3000/channels/${channelId}/join`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${await AsyncStorage.getItem("token")}`,

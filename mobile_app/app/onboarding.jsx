@@ -15,10 +15,8 @@ import BottomBlob from "../components/BottomBlob";
 
 const { height } = Dimensions.get("window");
 const logo = require("../assets/images/logo.png");
-
 export default function Onboarding() {
   const router = useRouter();
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />

@@ -1,7 +1,7 @@
 import axios from "axios";
 import Message from "../models/message.model.js";
 
-const CHANNEL_SERVICE_URL = "http://localhost:3000";
+const CHANNEL_SERVICE_URL = process.env.CHANNEL_SERVICE_URL;
 
 const chatSocket = (io) => {
   io.on("connection", (socket) => {
@@ -12,14 +12,15 @@ const chatSocket = (io) => {
     });
 
     socket.on("sendMessage", async (data) => {
+      console.log("SEND MESSAGE:", data);
       try {
         const { channelId, userId, username, text } = data;
 
         if (!channelId || !userId || !text) return;
 
-        // 🔥 CALL CHANNEL SERVICE (SOURCE OF TRUTH)
+        // 🔥 ASK CHANNEL SERVICE (SOURCE OF TRUTH)
         const res = await axios.get(
-          `${CHANNEL_SERVICE_URL}/channels/${channelId}/is-member/${userId}`
+          `${CHANNEL_SERVICE_URL}/${channelId}/is-member/${userId}`
         );
 
         if (!res.data.isMember) {

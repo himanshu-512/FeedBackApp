@@ -31,7 +31,7 @@ export default function Anonymous() {
 console.log(token);
 console.log("PROFILE URL:", `http://${ip}:3000/auth/me`);
 
-        const res = await fetch(`http://192.168.0.106:3000/auth/me`, {
+        const res = await fetch(`http://${ip}:3000/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

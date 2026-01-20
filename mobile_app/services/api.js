@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ip from "../services/ip";
+import {ip} from "../services/ip";
 
 const BASE_URL = `http://${ip}:3000`;
 console.log("BASE_URL:", BASE_URL);
@@ -54,6 +54,7 @@ export async function getChannels() {
 // }
 
 export async function getMessages(channelId) {
+  console.log(channelId);
   const token = await AsyncStorage.getItem("token");
   console.log(token);
   const userId = await AsyncStorage.getItem("userId");
