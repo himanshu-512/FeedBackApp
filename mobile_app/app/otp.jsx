@@ -10,14 +10,11 @@ import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  PhoneAuthProvider,
-  signInWithCredential,
-} from "firebase/auth";
+import { PhoneAuthProvider, signInWithCredential } from "firebase/auth";
 
 import { auth } from "../services/firebase";
 import ip from "../services/ip";
-
+import { verifyOtp } from "../services/auth";
 export default function OTP() {
   const router = useRouter();
   const { phone, verificationId } = useLocalSearchParams(); // ✅ FIXED
@@ -26,6 +23,7 @@ export default function OTP() {
   const [loading, setLoading] = useState(false);
 
   const verifyOTP = async () => {
+    const phone = await AsyncStorage.getItem("otp_phone");
     if (otp.length !== 6) {
       alert("Enter 6 digit OTP");
       return;
@@ -33,39 +31,15 @@ export default function OTP() {
 
     try {
       setLoading(true);
-      console.log("OTP:", otp);
 
-      // 🔥 1️⃣ FIREBASE OTP VERIFY
-      const credential = PhoneAuthProvider.credential(
-        verificationId,
-        otp
-      );
-
-      const result = await signInWithCredential(auth, credential);
-      const firebasePhone = result.user.phoneNumber;
-
-      // 🔐 2️⃣ BACKEND → JWT
-      const res = await fetch(`http://${ip}:3000/auth/verify-phone`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: firebasePhone }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message || "Login failed");
-        return;
-      }
-
-      // 🔐 SAVE USER DATA
+      const data = await verifyOtp(phone, otp);
+      await AsyncStorage.removeItem("otp_phone");
       await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("userId", data.userId);
       await AsyncStorage.setItem("username", data.username);
 
-      // ✅ LOGIN SUCCESS
       router.replace("/anonymous");
-    } catch (err) {
-      console.log("OTP VERIFY ERROR:", err);
+    } catch {
       alert("Invalid OTP");
     } finally {
       setLoading(false);
@@ -77,9 +51,7 @@ export default function OTP() {
       <StatusBar barStyle="dark-content" />
 
       <Text style={styles.title}>Verify OTP</Text>
-      <Text style={styles.subtitle}>
-        OTP sent to +91 {phone}
-      </Text>
+      <Text style={styles.subtitle}>OTP sent to +91 {phone}</Text>
 
       <TextInput
         value={otp}
@@ -105,7 +77,6 @@ export default function OTP() {
     </View>
   );
 }
-
 
 /* 🎨 STYLES — UNCHANGED */
 const styles = StyleSheet.create({

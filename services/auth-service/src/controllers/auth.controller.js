@@ -5,11 +5,11 @@ import { generateUsername } from '../utils/username.js';
 import User from "../models/User.model.js";
 import { sendOtpSms } from "../utils/sendOtpSms.js";
 // import { generateUsername } from "../utils/username.js";
-
+import Otp from "../models/otp.model.js";
 // if (!process.env.JWT_SECRET) {
 //   throw new Error('JWT_SECRET is not defined');
 // }
-
+import fetch from "node-fetch";
 export function anonymousLogin(req, res) {
   try {
     const userId = uuidv4();
@@ -104,5 +104,122 @@ export const getMe = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch user" });
+  }
+};
+
+const OTP_EXPIRY_MIN = 5;
+
+export const sendOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone || phone.length !== 10) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number",
+      });
+    }
+
+    // 🔢 Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await Otp.deleteMany({ phone });
+    await Otp.create({
+      phone,
+      otp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    const response = await fetch("https://ninzasms.in.net/auth/send_sms", {
+      method: "POST",
+      headers: {
+        authorization: process.env.NINZA_SMS_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender_id: "15723",
+        variables_values: otp,
+        numbers: phone,
+      }),
+    });
+
+    const data = await response.json();
+
+    console.log("RAW NINZA RESPONSE:", data);
+
+    // 🔥 UNIVERSAL SUCCESS CHECK
+    let parsedResponse = null;
+
+    if (data.response) {
+      try {
+        parsedResponse = JSON.parse(data.response);
+      } catch (e) {}
+    }
+
+    const isSuccess =
+      data.status === 1 ||
+      data.msg?.toLowerCase().includes("otp sent") ||
+      parsedResponse?.return === true;
+
+    if (isSuccess) {
+      return res.status(200).json({
+        success: true,
+        message: "OTP sent successfully",
+      });
+    }
+
+    // ❌ Only REAL failure reaches here
+    return res.status(400).json({
+      success: false,
+      message: "OTP sending failed",
+      raw: data,
+    });
+
+  } catch (err) {
+    console.error("SEND OTP ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while sending OTP",
+    });
+  }
+};
+
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    console.log("VERIFY OTP:", phone, otp);
+
+    const record = await Otp.findOne({ phone, otp });
+
+    if (!record) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    await Otp.deleteMany({ phone });
+
+    let user = await User.findOne({ phone });
+
+    if (!user) {
+      user = await User.create({
+        phone,
+        username: `User_${Math.floor(1000 + Math.random() * 9000)}`,
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({
+      token,
+      userId: user._id,
+      username: user.username,
+    });
+  } catch (err) {
+    console.error("VERIFY OTP ERROR:", err.message);
+    res.status(500).json({ message: "OTP verification failed" });
   }
 };

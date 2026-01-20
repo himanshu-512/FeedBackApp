@@ -18,7 +18,7 @@ import { anonymousLogin } from "../services/auth";
 // import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { height } = Dimensions.get("window");
-const avatar = require("../assets/images/logo.png");
+const avatar = require("../assets/images/hacker.png");
 
 export default function Anonymous() {
   const [userId, setUserId] = useState(null);
@@ -31,7 +31,7 @@ export default function Anonymous() {
 console.log(token);
 console.log("PROFILE URL:", `http://${ip}:3000/auth/me`);
 
-        const res = await fetch(`http://10.192.36.156:3000/auth/me`, {
+        const res = await fetch(`http://192.168.0.106:3000/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

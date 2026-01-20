@@ -1,50 +1,34 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-
-
-export function ChannelCard({ item, onJoin }) {
+export function ChannelCard({ item, isJoined, onJoin }) {
   const router = useRouter();
-  const [userId, setUserId] = useState(null);
-  useEffect(() => {
-    AsyncStorage.getItem("userId").then(setUserId);
-  }, []);
-  const memberCount = item.members?.length || 0;
-  const isJoined = item.members?.includes(userId);
 
   return (
     <View style={{ marginBottom: 16 }}>
-      {/* CARD CLICK → CHAT OPEN */}
+      {/* CARD */}
       <Pressable
+        disabled={!isJoined}
         onPress={() =>
           router.push({
-            pathname: `/channels/${item._id}`, // ✅ correct route
-            params: {
-              name: item.name,
-              members: item.members,
-            },
+            pathname: `/channels/${item._id}`,
+            params: { name: item.name },
           })
         }
-        android_ripple={{ color: "#ddd" }}
+        android_ripple={isJoined ? { color: "#ddd" } : null}
       >
         <View style={styles.card}>
           <View style={styles.left}>
             <Text style={styles.title}>{item.name}</Text>
             <Text style={styles.desc}>{item.description}</Text>
 
-            <View style={styles.activeRow}>
-              <Text style={styles.userIcon}>👥</Text>
-              <Text style={styles.active}>{memberCount} members</Text>
-            </View>
+            <Text style={styles.members}>
+              👥 {item.members.length} members
+            </Text>
 
-            {/* 🔥 JOIN / JOINED */}
+            {/* JOIN / JOINED */}
             {!isJoined ? (
-              <Pressable
-                onPress={() => onJoin(item._id)}
-                style={{ marginTop: 8 }}
-              >
+              <Pressable onPress={() => onJoin(item._id)}>
                 <Text style={styles.join}>Join</Text>
               </Pressable>
             ) : (
@@ -52,7 +36,12 @@ export function ChannelCard({ item, onJoin }) {
             )}
           </View>
 
-          <View style={[styles.iconWrap, { backgroundColor: item.color }]}>
+          <View
+            style={[
+              styles.iconWrap,
+              { backgroundColor: item.color },
+            ]}
+          >
             <Text style={styles.icon}>{item.icon}</Text>
           </View>
         </View>
@@ -60,8 +49,6 @@ export function ChannelCard({ item, onJoin }) {
     </View>
   );
 }
-
-
 
 
 const styles = StyleSheet.create({
@@ -109,15 +96,14 @@ const styles = StyleSheet.create({
     fontSize: 30,
   },
   join: {
-  marginTop: 8,
-  color: "#7860E3",
-  fontWeight: "800",
-},
+    marginTop: 8,
+    color: "#7860E3",
+    fontWeight: "800",
+  },
 
-joined: {
-  marginTop: 8,
-  color: "green",
-  fontWeight: "800",
-},
-
+  joined: {
+    marginTop: 8,
+    color: "green",
+    fontWeight: "800",
+  },
 });

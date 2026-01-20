@@ -9,6 +9,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import authRouter from '../src/routes/auth.routes.js'
 import channelRouter from '../src/routes/channel.routes.js'
 import messageRouter from '../src/routes/massage.routes.js'
+import walletRouter from '../src/routes/wallet.routes.js'
 const app = express();
 
 // /* 🔥 AUTH PROXY — MUST BE FIRST */
@@ -39,6 +40,7 @@ const app = express();
 app.use("/auth",authRouter)
 app.use("/channels",channelRouter)
 app.use("/messages",messageRouter)
+app.use("/wallet", walletRouter)
 
 /* MIDDLEWARES (AFTER PROXY) */
 app.use(cors());

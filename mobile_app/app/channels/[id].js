@@ -1,157 +1,379 @@
 import { useEffect, useState, useRef } from "react";
-import { View, FlatList, Text, TextInput, Pressable } from "react-native";
+import {
+  View,
+  FlatList,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  Alert,
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { io } from "socket.io-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+
 import { getMessages } from "../../services/api";
 import ip from "../../services/ip";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
+/* 🔓 PURE JS JWT DECODE (NO LIB) */
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+};
 
 export default function ChannelChat() {
-  const { id: channelId, name, members } = useLocalSearchParams();
+  const { id: channelId, name } = useLocalSearchParams();
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [isMember, setIsMember] = useState(false); // ✅ NEW
-  const listRef = useRef(null);
+  const [isMember, setIsMember] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [username, setUsername] = useState(null);
+  const [typingUser, setTypingUser] = useState(false);
+
   const socketRef = useRef(null);
-   const [userId, setUserId] = useState(null);
+  const listRef = useRef(null);
+  const typingTimeout = useRef(null);
+
+  /* 🔑 LOAD USER FROM JWT */
   useEffect(() => {
-    AsyncStorage.getItem("userId").then(setUserId);
+    const loadUser = async () => {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+
+      const decoded = decodeJWT(token);
+      if (decoded?.userId) {
+        setUserId(decoded.userId);
+        setUsername(decoded.username);
+      }
+    };
+
+    loadUser();
   }, []);
 
-  const USER_ID = userId; // later AsyncStorage se
-
-  // 🔑 CHECK MEMBERSHIP
+  /* 🔐 CHECK MEMBERSHIP FROM BACKEND */
   useEffect(() => {
-    if (members && members.includes(USER_ID)) {
-      setIsMember(true);
+    const checkMembership = async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+
+        const res = await fetch(
+          `http://${ip}:3000/channels/${channelId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await res.json();
+
+        if (
+          res.ok &&
+          data.members?.some((m) => m.userId === userId)
+        ) {
+          setIsMember(true);
+        } else {
+          setIsMember(false);
+        }
+      } catch (err) {
+        console.log("MEMBERSHIP CHECK ERROR:", err.message);
+      }
+    };
+
+    if (userId) {
+      checkMembership();
     }
-  }, []);
+  }, [userId, channelId]);
 
-  // 1️⃣ LOAD OLD MESSAGES
+  /* 📥 LOAD OLD MESSAGES (ONLY IF MEMBER) */
   useEffect(() => {
+    if (!isMember) return;
+
     getMessages(channelId)
-      .then((data) => {
-        setMessages(data);
-      })
-      .catch((err) => console.log("MSG ERROR:", err.message));
-  }, [channelId]);
+      .then(setMessages)
+      .catch((err) =>
+        console.log("GET MESSAGE ERROR:", err.message)
+      );
+  }, [channelId, isMember]);
 
-  // 2️⃣ SOCKET CONNECT
+  /* 🔌 SOCKET CONNECT (ONLY IF MEMBER) */
   useEffect(() => {
+    if (!userId || !isMember) return;
+
     socketRef.current = io(`http://${ip}:4003`, {
       transports: ["websocket"],
-      auth: {
-        userId: USER_ID,
-      },
+      auth: { userId },
     });
 
     socketRef.current.emit("joinChannel", { channelId });
 
-    socketRef.current.on("newMessage", (newMsg) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === newMsg._id)) return prev;
-        return [...prev, newMsg];
-      });
+    socketRef.current.on("newMessage", (msg) => {
+      setMessages((prev) =>
+        prev.some((m) => m._id === msg._id) ? prev : [...prev, msg]
+      );
     });
 
+    socketRef.current.on("typing", () => setTypingUser(true));
+    socketRef.current.on("stopTyping", () => setTypingUser(false));
+
     socketRef.current.on("errorMessage", (err) => {
-      alert(err.message); // backend message
+      Alert.alert("Error", err.message);
     });
 
     return () => {
       socketRef.current.disconnect();
     };
-  }, [channelId]);
+  }, [userId, isMember, channelId]);
 
-  // 3️⃣ AUTO SCROLL
+  /* ⬇️ AUTO SCROLL */
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+  }, [messages, typingUser]);
 
-  // 4️⃣ SEND MESSAGE (ONLY IF MEMBER)
+  /* ✍️ HANDLE TYPING */
+  const handleTyping = (text) => {
+    setInput(text);
+
+    socketRef.current?.emit("typing", { channelId });
+
+    clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      socketRef.current?.emit("stopTyping", { channelId });
+    }, 1200);
+  };
+
+  /* ✉️ SEND MESSAGE */
   const sendMessage = () => {
-    if (!isMember) return;
+    if (!isMember) {
+      Alert.alert("Join required", "Please join channel to chat");
+      return;
+    }
+
     if (!input.trim()) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     socketRef.current.emit("sendMessage", {
       channelId,
-      userId: USER_ID,
-      username: USER_ID,
+      userId,
+      username,
       text: input,
     });
 
     setInput("");
   };
 
-  // 5️⃣ JOIN CHANNEL
-  const joinChannel = async () => {
-    await fetch(`http://${ip}:3000/channels/${channelId}/join`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${await AsyncStorage.getItem("token")}`,
-      },
-    });
+  /* 💬 MESSAGE UI */
+  const renderItem = ({ item }) => {
+    const isMe = item.userId === userId;
 
-    setIsMember(true);
+    return (
+      <View
+        style={[
+          styles.messageRow,
+          { justifyContent: isMe ? "flex-end" : "flex-start" },
+        ]}
+      >
+        <View
+          style={[
+            styles.bubble,
+            isMe ? styles.myBubble : styles.otherBubble,
+          ]}
+        >
+          {!isMe && (
+            <Text style={styles.usernameText}>
+              {item.username}
+            </Text>
+          )}
+
+          <Text style={styles.messageText}>
+            {item.isDeleted ? "Message deleted" : item.text}
+          </Text>
+        </View>
+      </View>
+    );
   };
 
   return (
-    <>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <StatusBar barStyle="light-content" />
+
+      {/* 🌈 HEADER */}
+      <LinearGradient
+        colors={["#7860E3", "#D66767"]}
+        style={styles.header}
+      >
+        <Text style={styles.channelLabel}>Channel</Text>
+        <Text style={styles.channelName} numberOfLines={1}>
+          #{name}
+        </Text>
+      </LinearGradient>
+
+      {/* 💬 CHAT */}
       <FlatList
         ref={listRef}
         data={messages}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <View style={{ padding: 8 }}>
-            <Text>{item.text}</Text>
-          </View>
-        )}
+        renderItem={renderItem}
+        contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
+        showsVerticalScrollIndicator={false}
       />
 
-      {/* JOIN BUTTON */}
-      {!isMember && (
-        <Pressable
-          onPress={joinChannel}
-          style={{
-            backgroundColor: "#7860E3",
-            padding: 12,
-            margin: 10,
-            borderRadius: 20,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>
-            Join channel to chat
-          </Text>
-        </Pressable>
+      {/* ✍️ TYPING */}
+      {typingUser && (
+        <Text style={styles.typing}>Someone is typing…</Text>
       )}
 
-      {/* INPUT BAR */}
-      <View style={{ flexDirection: "row", padding: 10 }}>
+      {/* ⌨️ INPUT */}
+      <View style={styles.inputBar}>
         <TextInput
           value={input}
-          onChangeText={setInput}
+          onChangeText={handleTyping}
           placeholder={
-            isMember ? "Write anonymously..." : "Join channel to send messages"
+            isMember
+              ? "Write anonymously…"
+              : "Join channel to chat"
           }
-          editable={isMember} // ✅ IMPORTANT
-          style={{
-            flex: 1,
-            backgroundColor: "#f2f2f2",
-            borderRadius: 20,
-            paddingHorizontal: 12,
-            opacity: isMember ? 1 : 0.5,
-          }}
+          editable={isMember}
+          style={[
+            styles.input,
+            { opacity: isMember ? 1 : 0.5 },
+          ]}
         />
 
-        <Pressable
-          onPress={sendMessage}
-          disabled={!isMember}
-          style={{ marginLeft: 10, opacity: isMember ? 1 : 0.4 }}
-        >
-          <Text>Send</Text>
+        <Pressable onPress={sendMessage}>
+          <LinearGradient
+            colors={["#7860E3", "#D66767"]}
+            style={styles.sendBtn}
+          >
+            <Text style={styles.sendText}>➤</Text>
+          </LinearGradient>
         </Pressable>
       </View>
-    </>
+    </KeyboardAvoidingView>
   );
 }
+
+/* 🎨 STYLES */
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+
+  header: {
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    elevation: 8,
+  },
+
+  channelLabel: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+
+  channelName: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+
+  messageRow: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+
+  bubble: {
+    maxWidth: "75%",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+  },
+
+  myBubble: {
+    backgroundColor: "#7860E3",
+    borderTopRightRadius: 4,
+  },
+
+  otherBubble: {
+    backgroundColor: "#f2f2f2",
+    borderTopLeftRadius: 4,
+  },
+
+  usernameText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#555",
+    marginBottom: 2,
+  },
+
+  messageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: "#000",
+  },
+
+  typing: {
+    marginLeft: 20,
+    marginBottom: 6,
+    color: "#777",
+    fontStyle: "italic",
+  },
+
+  inputBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    padding: 12,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderColor: "#eee",
+    backgroundColor: "#fff",
+  },
+
+  input: {
+    flex: 1,
+    backgroundColor: "#f2f2f2",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+
+  sendText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+});

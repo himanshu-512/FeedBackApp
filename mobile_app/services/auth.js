@@ -1,27 +1,68 @@
-// services/auth.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ip  from "./ip";
+import ip from "./ip";
 
-const BASE_URL = `http://${ip}:3000`; 
+const BASE_URL = `http://${ip}:3000`;
 
+/* 🔑 ANONYMOUS LOGIN */
 export async function anonymousLogin() {
-  const res = await fetch(`${BASE_URL}/auth/auth/anonymous`, {
+  const res = await fetch(`${BASE_URL}/auth/anonymous`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
   });
 
-  if (!res.ok) {
-    throw new Error("Anonymous login failed");
-  }
-
   const data = await res.json();
 
-  // Save for future use (API + Socket)
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || "Anonymous login failed");
+  }
+
   await AsyncStorage.setItem("token", data.token);
   await AsyncStorage.setItem("userId", data.userId);
   await AsyncStorage.setItem("username", data.username);
 
   return data;
 }
+
+/* 📲 SEND OTP */
+export const sendOtp = async (phone) => {
+  const res = await fetch(`${BASE_URL}/auth/send-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+  await AsyncStorage.setItem("otp_phone", phone);
+
+  const data = await res.json(); // ✅ FIX
+
+  console.log("SEND OTP RESPONSE:", data);
+
+  if (!data.success) {
+    throw new Error(data.message || "OTP failed");
+  }
+
+  return data; // { success: true }
+};
+
+/* 🔐 VERIFY OTP */
+export const verifyOtp = async (phone,otp) => {
+  const res = await fetch(`${BASE_URL}/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, otp }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.token) {
+    throw new Error(data.message || "Invalid OTP");
+  }
+
+  // ✅ SAVE LOGIN DATA
+  await AsyncStorage.setItem("token", data.token);
+  await AsyncStorage.setItem("userId", data.userId);
+  await AsyncStorage.setItem("username", data.username);
+
+  return data;
+};

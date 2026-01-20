@@ -15,7 +15,7 @@ import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 import { auth, firebaseConfig } from "../services/firebase"; // 🔥 update export
 import TopBlob from "../components/TopBlob";
 import BottomBlob from "../components/BottomBlob";
-
+import { sendOtp } from "../services/auth";
 export default function Login() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
@@ -31,28 +31,15 @@ export default function Login() {
     }
 
     try {
-      setLoading(true);
-
-      const confirmation = await signInWithPhoneNumber(
-        auth,
-        "+91" + phone,
-        recaptchaVerifier.current // ✅ IMPORTANT
-      );
-
-      router.push({
-        pathname: "/otp",
-        params: {
-          phone,
-          verificationId: confirmation.verificationId,
-        },
-      });
-    } catch (error) {
-      console.log("FIREBASE OTP ERROR:", error);
-      alert(error.message || "Failed to send OTP");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLoading(true);
+    await sendOtp(phone);
+    router.push("/otp");
+  } catch {
+    alert("OTP send failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.container}>

@@ -1,46 +1,49 @@
-import { createMessage } from "../controllers/message.controller.js";
+import axios from "axios";
+import Message from "../models/message.model.js";
+
+const CHANNEL_SERVICE_URL = "http://localhost:3000";
 
 const chatSocket = (io) => {
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+    console.log("🔌 User connected:", socket.id);
 
     socket.on("joinChannel", ({ channelId }) => {
       socket.join(channelId);
     });
 
-    socket.on('sendMessage', async (data) => {
-  const { channelId, userId, username, text } = data;
+    socket.on("sendMessage", async (data) => {
+      try {
+        const { channelId, userId, username, text } = data;
 
-  if (!channelId || !userId || !text) return;
+        if (!channelId || !userId || !text) return;
 
-  // 🔐 CHECK MEMBERSHIP
-  const channel = await channel.findById(channelId);
+        // 🔥 CALL CHANNEL SERVICE (SOURCE OF TRUTH)
+        const res = await axios.get(
+          `${CHANNEL_SERVICE_URL}/channels/${channelId}/is-member/${userId}`
+        );
 
-  if (!channel) {
-    socket.emit("errorMessage", { message: "Channel not found" });
-    return;
-  }
+        if (!res.data.isMember) {
+          socket.emit("errorMessage", {
+            message: "You must join this channel to chat",
+          });
+          return;
+        }
 
-  if (!channel.members.includes(userId)) {
-    socket.emit("errorMessage", {
-      message: "You must join this channel to send messages"
-    });
-    return;
-  }
+        // ✅ SAVE MESSAGE
+        const message = await Message.create({
+          channelId,
+          userId,
+          username,
+          text,
+        });
 
-  // ✅ ALLOWED
-  const message = await message.create({
-    channelId,
-    userId,
-    username,
-    text
-  });
-
-  io.to(channelId).emit("newMessage", message);
-});
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
+        io.to(channelId).emit("newMessage", message);
+      } catch (err) {
+        console.log("SEND MESSAGE ERROR:", err.message);
+        socket.emit("errorMessage", {
+          message: "Message failed",
+        });
+      }
     });
   });
 };

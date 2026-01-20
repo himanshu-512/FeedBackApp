@@ -16,11 +16,22 @@ const channelSchema = new mongoose.Schema(
 
     createdBy: {
       type: String, // anonUserId
-      required: true,
+      required: false,
     },
 
     members: {
-      type: [String], // anonUserIds
+      type: [
+        {
+          userId: {
+            type: String,
+            required: true,
+          },
+          username: {
+            type: String,
+            required: true,
+          },
+        },
+      ], // anonUserIds
       default: [],
     },
 
@@ -36,5 +47,10 @@ const channelSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+channelSchema.index({
+  name: "text",
+  description: "text",
+});
 
 export default mongoose.model("Channel", channelSchema);

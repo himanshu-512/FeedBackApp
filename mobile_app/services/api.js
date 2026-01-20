@@ -17,10 +17,8 @@ async function getAuthHeaders() {
 
 export async function getChannels() {
   const token = await AsyncStorage.getItem("token");
-  console.log("TOKEN for channels:", token);
 
   const url = `${BASE_URL}/channels/all`;
-  console.log("HITTING:", url);
 
   const res = await fetch(url, {
     method: "GET",
@@ -57,6 +55,7 @@ export async function getChannels() {
 
 export async function getMessages(channelId) {
   const token = await AsyncStorage.getItem("token");
+  console.log(token);
   const userId = await AsyncStorage.getItem("userId");
 
   const res = await fetch(
@@ -69,6 +68,7 @@ export async function getMessages(channelId) {
       },
     }
   );
+  // console.log("GET MESSAGES:", res);
 
   if (!res.ok) {
     const err = await res.text();
@@ -96,3 +96,26 @@ export async function getAnonymousUser() {
 
   return res.json();
 }
+
+export const searchChannels = async (query, category) => {
+  if (!query || query.length < 2) return [];
+
+  const token = await AsyncStorage.getItem("token");
+  console.log(token);
+
+  const url = `http://${ip}:3000/channels/search?q=${encodeURIComponent(
+    query
+  )}&category=${encodeURIComponent(category || "All")}`;
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error("Search failed");
+  }
+
+  return res.json();
+};

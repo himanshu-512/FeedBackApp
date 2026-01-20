@@ -10,20 +10,20 @@ const messageSchema = new mongoose.Schema(
     },
 
     userId: {
-      type: String, // anon user id
+      type: String, // anonymous user id
       required: true,
       index: true,
     },
 
     username: {
-      type: String, // snapshot (anonymous name at send time)
+      type: String, // snapshot at send time
       required: true,
     },
 
     text: {
       type: String,
       required: true,
-      maxlength: 500, // 🔥 safety
+      maxlength: 500,
       trim: true,
     },
 
@@ -36,8 +36,17 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    reactions: {
+      type: Map,
+      of: Number, // { ❤️: 2, 🔥: 1 }
+      default: {},
+    },
   },
   { timestamps: true }
 );
+
+/* 🔥 CHAT INDEX (VERY IMPORTANT) */
+messageSchema.index({ channelId: 1, createdAt: 1 });
 
 export default mongoose.model("Message", messageSchema);
